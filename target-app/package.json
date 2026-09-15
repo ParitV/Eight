@@ -1,0 +1,16 @@
+{
+  "name": "target-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Deliberately vulnerable Express app used as a scan target for the SAST/DAST pipeline.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
