@@ -1,4 +1,3 @@
-// Intentional flaw: hardcoded secret, planted for secret-scanning tools to catch.
-const API_KEY = "sk_live_51Hc8x0000000000000000000000000000000000000000";
+const API_KEY = process.env.STRIPE_API_KEY || "";
 
 module.exports = { API_KEY };
