@@ -109,3 +109,61 @@ jobs:
             report_md.md
             report_json.json
           retention-days: 7
+
+  report:
+    name: Aggregate Findings & Comment on PR
+    runs-on: ubuntu-latest
+    needs: [codeql, semgrep, zap-dast]
+    if: ${{ github.event_name == 'pull_request' && success() }}
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Download CodeQL SARIF
+        uses: actions/download-artifact@v4
+        with:
+          name: codeql-sarif
+          path: artifacts/codeql
+
+      - name: Download Semgrep SARIF
+        uses: actions/download-artifact@v4
+        with:
+          name: semgrep-sarif
+          path: artifacts/semgrep
+
+      - name: Download ZAP report
+        uses: actions/download-artifact@v4
+        with:
+          name: zap-report
+          path: artifacts/zap
+
+      - name: Aggregate findings
+        id: aggregate
+        run: |
+          set +e
+          python scripts/aggregate_findings.py \
+            --codeql-sarif artifacts/codeql/javascript.sarif \
+            --semgrep-sarif artifacts/semgrep/semgrep-results.sarif \
+            --zap-json artifacts/zap/report_json.json \
+            --output report.md
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Post report as PR comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: report.md
+
+      - name: Fail workflow on High/Critical findings
+        if: steps.aggregate.outputs.exit_code != '0'
+        run: |
+          echo "aggregate_findings.py exited with code ${{ steps.aggregate.outputs.exit_code }} (High/Critical findings present)."
+          exit 1
