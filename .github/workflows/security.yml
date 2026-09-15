@@ -123,11 +123,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
       - name: Download CodeQL SARIF
         uses: actions/download-artifact@v4
         with:
@@ -146,25 +141,10 @@ jobs:
           name: zap-report
           path: artifacts/zap
 
-      - name: Aggregate findings
-        id: aggregate
-        run: |
-          set +e
-          python scripts/aggregate_findings.py \
-            --codeql-sarif artifacts/codeql/javascript.sarif \
-            --semgrep-sarif artifacts/semgrep/semgrep-results.sarif \
-            --zap-json artifacts/zap/report_json.json \
-            --output report.md
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
-
-      - name: Post report as PR comment
-        uses: peter-evans/create-or-update-comment@v4
+      - name: Aggregate findings & comment on PR
+        uses: ./
         with:
-          issue-number: ${{ github.event.pull_request.number }}
-          body-path: report.md
-
-      - name: Fail workflow on High/Critical findings
-        if: steps.aggregate.outputs.exit_code != '0'
-        run: |
-          echo "aggregate_findings.py exited with code ${{ steps.aggregate.outputs.exit_code }} (High/Critical findings present)."
-          exit 1
+          codeql-sarif: artifacts/codeql/javascript.sarif
+          semgrep-sarif: artifacts/semgrep/semgrep-results.sarif
+          zap-json: artifacts/zap/report_json.json
+          report-path: report.md
