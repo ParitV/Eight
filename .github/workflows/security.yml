@@ -98,6 +98,7 @@ jobs:
           target: 'http://localhost:8080'
           cmd_options: '-J report_json.json'
           fail_action: false
+          allow_issue_writing: false
 
       - name: Upload ZAP report artifact
         uses: actions/upload-artifact@v4
