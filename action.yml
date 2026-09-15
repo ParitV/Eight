@@ -1,0 +1,78 @@
+name: 'Aggregate Security Findings'
+description: 'Normalizes CodeQL, Semgrep, and OWASP ZAP output into one Markdown report, posts it as a PR comment, and fails when High/Critical findings are present.'
+author: 'ParitV'
+
+branding:
+  icon: 'shield'
+  color: 'red'
+
+inputs:
+  codeql-sarif:
+    description: 'Path to the CodeQL SARIF file'
+    required: true
+  semgrep-sarif:
+    description: 'Path to the Semgrep SARIF file'
+    required: true
+  zap-json:
+    description: 'Path to the OWASP ZAP JSON report'
+    required: true
+  report-path:
+    description: 'Where to write the aggregated Markdown report'
+    required: false
+    default: 'report.md'
+  post-comment:
+    description: 'Post the report as a PR comment. Only takes effect on pull_request events.'
+    required: false
+    default: 'true'
+  fail-on-findings:
+    description: 'Fail this action if any High or Critical severity finding is present.'
+    required: false
+    default: 'true'
+  github-token:
+    description: 'Token used to post the PR comment. Defaults to the workflow token.'
+    required: false
+
+outputs:
+  report-path:
+    description: 'Path to the generated Markdown report'
+    value: ${{ steps.aggregate.outputs.report-path }}
+  exit-code:
+    description: 'Exit code from aggregate_findings.py (0 = no High/Critical findings, 1 = High/Critical findings present)'
+    value: ${{ steps.aggregate.outputs.exit_code }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Aggregate findings
+      id: aggregate
+      shell: bash
+      run: |
+        set +e
+        python "${{ github.action_path }}/scripts/aggregate_findings.py" \
+          --codeql-sarif "${{ inputs.codeql-sarif }}" \
+          --semgrep-sarif "${{ inputs.semgrep-sarif }}" \
+          --zap-json "${{ inputs.zap-json }}" \
+          --output "${{ inputs.report-path }}"
+        code=$?
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+        echo "report-path=${{ inputs.report-path }}" >> "$GITHUB_OUTPUT"
+
+    - name: Post report as PR comment
+      if: ${{ inputs.post-comment == 'true' && github.event_name == 'pull_request' }}
+      uses: peter-evans/create-or-update-comment@v4
+      with:
+        token: ${{ inputs.github-token || github.token }}
+        issue-number: ${{ github.event.pull_request.number }}
+        body-path: ${{ inputs.report-path }}
+
+    - name: Fail on High/Critical findings
+      if: ${{ inputs.fail-on-findings == 'true' && steps.aggregate.outputs.exit_code != '0' }}
+      shell: bash
+      run: |
+        echo "aggregate_findings.py exited with code ${{ steps.aggregate.outputs.exit_code }} (High/Critical findings present)."
+        exit 1
