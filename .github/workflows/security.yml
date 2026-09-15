@@ -2,6 +2,7 @@ name: Security Scans
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
